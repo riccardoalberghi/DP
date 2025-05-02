@@ -1,0 +1,10 @@
+data_dir: ${working_dir}/.dataset_effp5_766_small_2
+
+graph_generation:
+  max_graph_depth: 7
+  max_num_nodes_per_layer: 6
+  max_edge_cost: 6
+  connectivity_probability: 0.6
+
+cot_generation:
+  efficiency: 5
