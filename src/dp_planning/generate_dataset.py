@@ -25,7 +25,14 @@ def generate_samples(cfg):
                                 )
         
         question = graph.Q_string()
-        cot, answer = generate_CoT_A(graph, efficiency=cfg.dataset.cot_generation.efficiency, aha_token=cfg.training.use_aha, wait_token=cfg.training.use_wait)
+        cot, answer = generate_CoT_A(graph, 
+                                     efficiency=cfg.dataset.cot_generation.efficiency, 
+                                     aha_token=cfg.training.use_aha, 
+                                     wait_token=cfg.training.use_wait,
+                                     redundancy=cfg.training.redundacy,
+                                     p_redundancy=cfg.training.p_redundancy,
+                                     p_misplaced_keywords=cfg.training.percentage_misplaced_keywords,
+                                     )
         
         # Set CoT to empty string if train_on_cots is False
         if not cfg.training.train_on_cots:

@@ -221,7 +221,7 @@ def from_Q_to_graph(Q):
         return layered_graph(1, np.array([1, 1]), [np.array([[1]])])
         
     return layered_graph(ls, np.array(ks), As)
-            
+        
 
 ### DP SOLVER (sorted order) ###
   
@@ -247,10 +247,20 @@ def bottom_up_backward(best_choice):
 
 ### CoT + A GENERATOR ###
 
+def check_done_layers(branches, inv_node_labels, ls):
+    done_layers = np.ones(ls+1, dtype=bool)
+    end_l_list = []
+    for b in branches:
+        end_l = inv_node_labels[b[2]][0]
+        end_l_list.append(end_l)    
+    done_layers[min(end_l_list):] = False
+    return done_layers
+
 def generate_CoT_A(graph, efficiency=10., 
-                 BoT_tokens=True, BoS_tokens=True, aha_token=True, wait_token=True):
+                 BoT_tokens=True, BoS_tokens=True, aha_token=True, wait_token=True,
+                 p_misplaced_keywords=0., redundancy=0, p_redundancy=0.0):
     # The idea of this function is to construct CoTs with some control over the 
-    # efficiency of the exploration process. What allows this control is that, 
+    # efficiency of the exploration process. What allows this controdl is that, 
     # at each step, we have a list of current open branches, i.e. paths that we 
     # could consider next. 
     # - Every time we reach a new node (expanding our search frontier) we may 
@@ -270,8 +280,10 @@ def generate_CoT_A(graph, efficiency=10.,
     # - The 'wait' token may be produced when may be produced when a better 
     # path to reach a given node is found, and this forces us to reconsider the 
     # paths to reach a node that we previously deemed solved.
+    # - Both aha and wait tokens may be misplaced with probability p_misplaced_keywords
+    # - With redundancy parameter, each branch will be deterministically explored
+    #   the specified number of times (e.g., redundancy=2 means try each path twice)
     # NOTE THAT:
-    # - We assume no redundancy (no repetitions)
     # - We assume to always use current best sub-paths for estimating the new 
     # cumulative costs
     # - We never stop the exploration process early, e.g. in situations where 
@@ -302,7 +314,12 @@ def generate_CoT_A(graph, efficiency=10.,
         ws = np.array(weights)
         # we pick one open branch with the constructed probabilities
         ind = np.random.choice(np.arange(len(branches)), p = ws / ws.sum())
-        layer, start, end = branches.pop(ind); weights.pop(ind)
+        layer, start, end = branches.pop(ind); w = weights.pop(ind)
+
+        if np.random.rand() < p_redundancy:
+            branches.append((layer, start, end))
+            weights.append(w)
+        
         # to find the cost of the edge, we remap to the (layer, node) indexing
         k_start, k_end = inv_node_labels[start][1], inv_node_labels[end][1]
         cost = As[layer][k_start, k_end]
@@ -325,8 +342,14 @@ def generate_CoT_A(graph, efficiency=10.,
         if path[-2] not in tried_routes_to_node[end]:
             tried_routes_to_node[end].append(path[-2])
          
-        if new_c < old_c:
+        misplace_aha = np.random.rand() < p_misplaced_keywords
+        if misplace_aha and new_c >= old_c:
             if aha_token:
+                # the cost is not better than the previously found one, 
+                # but we misplace the keyword, we say aha!
+                s += "aha "
+        if new_c < old_c:
+            if aha_token and not misplace_aha:
                 # the cost is better than the previously found one, we say aha!
                 s += "aha "
             # update best_cs for the end node
@@ -344,12 +367,16 @@ def generate_CoT_A(graph, efficiency=10.,
                         continue
                     branch = (layer+1, end, node_labels[(layer+2, k)])
                     
+                    misplace_wait = np.random.rand() < p_misplaced_keywords
                     if end in tried_routes_to_node[branch[2]]: 
                         # if the new branch was already seen before, but with a 
                         # sub-optimal partial cost, we should review our 
                         # computation with the new better partial score
                         # we can signal this with a "wait!"
-                        if wait_token:                        
+                        if wait_token and not misplace_wait:                        
+                            s += "wait "
+                    elif misplace_wait:
+                        if wait_token:
                             s += "wait "
                     
                     if branch in branches:
@@ -357,8 +384,6 @@ def generate_CoT_A(graph, efficiency=10.,
                         # better cost for the start node
                         continue
                     else:
-                        # otherwise we open a new branch, and give it a weight 
-                        # depending on the associated layer
                         branches.append(branch)
                         weights.append(np.exp(-efficiency * branch[0]))
 
@@ -379,6 +404,9 @@ def generate_CoT_A(graph, efficiency=10.,
     sA += f"{best_cs[-1]} |"
     # Always add EoS token to ensure it's consistently present in training data
     sA += " EoS"
+
+    if redundancy:
+        s = "BoT" + "|".join(np.repeat(s[3:-5].split("|"), redundancy)) + "| EoT"
         
     return s, sA
 
@@ -819,4 +847,4 @@ def evaluate_A(graph, A,
                           n_CoT_steps, repeated_CoT_steps, CoT_path_possible, consistent_CoT_steps, sub_prob_optimal_CoT_steps, CoT_steps_skipped_sub_prob,
                           frac_correct_aha, missed_aha, frac_correct_wait, missed_wait, ls, is_A_path_correct])
     
-    return ev 
+    return ev

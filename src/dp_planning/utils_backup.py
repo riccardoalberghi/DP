@@ -388,23 +388,28 @@ def generate_CoT_A(graph, efficiency=10.,
 
 def create_eval_dataframe():
     df = pd.DataFrame(columns=['syntax_errors', 'is_A_path_possible', 'is_A_cost_consistent', 'is_A_cost_optimal', 'is_A_path_length_correct', 
+                          'is_A_cost_optimal_and_consistent', 'is_A_path_correct',
                           'n_CoT_steps', 'repeated_CoT_steps', 'CoT_path_possible', 'consistent_CoT_steps', 'sub_prob_optimal_CoT_steps', 'CoT_steps_skipped_sub_prob',
-                          'frac_correct_aha', 'missed_aha', 'frac_correct_wait', 'missed_wait'])
+                          'frac_correct_aha', 'missed_aha', 'frac_correct_wait', 'missed_wait', 'num_layers'])
     return df
 
 class Evaluation_state():
     def __init__(self, evals):
         self.syntax_errors, self.is_A_path_possible, self.is_A_cost_consistent, self.is_A_cost_optimal, self.is_A_path_length_correct = evals[0], evals[1], evals[2], evals[3], evals[4]
+        self.is_A_cost_optimal_and_consistent = self.is_A_cost_optimal and self.is_A_cost_consistent
         self.n_CoT_steps, self.repeated_CoT_steps, self.CoT_path_possible, self.consistent_CoT_steps, self.sub_prob_optimal_CoT_steps, self.CoT_steps_skipped_sub_prob = evals[5], evals[6], evals[7], evals[8], evals[9], evals[10]
         self.frac_correct_aha, self.missed_aha, self.frac_correct_wait, self.missed_wait = evals[11], evals[12], evals[13], evals[14]
+        self.num_layers = evals[15]
+        self.is_A_path_correct = evals[16] if len(evals) > 16 else (self.is_A_cost_optimal and self.is_A_cost_consistent and self.is_A_path_length_correct)
     def __repr__(self, aha_token=True, wait_token=True):
         s = f"Overall the response contains {self.syntax_errors} syntax errors." 
-        s += f"\nA:\n allowed path: {self.is_A_path_possible} \n consistency: {self.is_A_cost_consistent} \n cost optimality: {self.is_A_cost_optimal} \n correct path length: {self.is_A_path_length_correct}"
+        s += f"\nA:\n allowed path: {self.is_A_path_possible} \n consistency: {self.is_A_cost_consistent} \n cost optimality: {self.is_A_cost_optimal} \n correct path length: {self.is_A_path_length_correct} \n cost optimal and consistent: {self.is_A_cost_optimal_and_consistent} \n path correct: {self.is_A_path_correct}"
         s += f"\nCoT:\n n steps={self.n_CoT_steps}, \n repeated steps={self.repeated_CoT_steps} \n allowed paths={self.CoT_path_possible} \n consistent steps={self.consistent_CoT_steps} \n steps involving optimal partial paths={self.sub_prob_optimal_CoT_steps} \n steps involving unseen partial paths={self.CoT_steps_skipped_sub_prob}"
         if aha_token:
             s += f"\n fraction of correct 'aha'={self.frac_correct_aha} \n missed 'aha'={self.missed_aha}"
         if wait_token:
-            s += f"\n fraction of correct 'wait'={self.frac_correct_wait} \n missed 'wait'={self.missed_wait}" 
+            s += f"\n fraction of correct 'wait'={self.frac_correct_wait} \n missed 'wait'={self.missed_wait}"
+        s += f"\n graph layers={self.num_layers}" 
         return s
     def add_row_df(self, df):
         # adding a row
@@ -417,6 +422,8 @@ class Evaluation_state():
             'is_A_cost_consistent': self.is_A_cost_consistent,
             'is_A_cost_optimal': self.is_A_cost_optimal,
             'is_A_path_length_correct': self.is_A_path_length_correct,
+            'is_A_cost_optimal_and_consistent': self.is_A_cost_optimal_and_consistent,
+            'is_A_path_correct': self.is_A_path_correct,
             'n_CoT_steps': self.n_CoT_steps,
             'repeated_CoT_steps': self.repeated_CoT_steps,
             'CoT_path_possible': self.CoT_path_possible,
@@ -426,7 +433,8 @@ class Evaluation_state():
             'frac_correct_aha': self.frac_correct_aha,
             'missed_aha': self.missed_aha,
             'frac_correct_wait': self.frac_correct_wait,
-            'missed_wait': self.missed_wait
+            'missed_wait': self.missed_wait,
+            'num_layers': self.num_layers
         }
         
         # Set values for columns present in the dataframe
@@ -575,7 +583,7 @@ def check_nodes_and_correct_layer_order(path, inv_node_labels):
         except Exception as e:
             # print(f"Warning: Error checking node order: {e}")
             ok_nodes = False
-            ok_path = False            
+            ok_path = False
             
     return (ok_nodes and ok_path)
 
@@ -804,8 +812,11 @@ def evaluate_A(graph, A,
     missed_aha = missed_aha if aha_token else None
     missed_wait = missed_wait if wait_token else None
     
+    # Calculate the new is_A_path_correct metric
+    is_A_path_correct = is_A_cost_optimal and is_A_cost_consistent and is_A_path_length_correct
+    
     ev = Evaluation_state([syntax_errors, is_A_path_possible, is_A_cost_consistent, is_A_cost_optimal, is_A_path_length_correct, 
                           n_CoT_steps, repeated_CoT_steps, CoT_path_possible, consistent_CoT_steps, sub_prob_optimal_CoT_steps, CoT_steps_skipped_sub_prob,
-                          frac_correct_aha, missed_aha, frac_correct_wait, missed_wait])
+                          frac_correct_aha, missed_aha, frac_correct_wait, missed_wait, ls, is_A_path_correct])
     
     return ev 

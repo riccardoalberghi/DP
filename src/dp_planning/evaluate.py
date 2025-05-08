@@ -1,5 +1,6 @@
 import os
 import glob
+import math
 import hydra
 import torch
 import numpy as np
@@ -40,13 +41,14 @@ def main(cfg):
     # Create dataframe to store evaluation results
     results_df = pd.DataFrame(columns=['checkpoint', 'syntax_errors', 'is_A_path_possible', 
                                      'is_A_cost_consistent', 'is_A_cost_optimal', 
-                                     'is_A_path_length_correct'])
+                                     'is_A_path_length_correct', 'avg_prob_1', 'avg_prob_2', 'prob_diff'])
     
     # Initialize sampling parameters for vLLM
     sampling_params = SamplingParams(
-        temperature=0,  # Deterministic sampling (equivalent to do_sample=False)
+        temperature=cfg.training.temperature,  # Deterministic sampling (equivalent to do_sample=False)
         max_tokens=8192,
-        stop_token_ids=[tokenizer.encode("EoS")[0]]
+        stop_token_ids=[tokenizer.encode("EoS")[0]],
+        logprobs=2,
     )
     
     # Loop through each checkpoint
@@ -66,6 +68,11 @@ def main(cfg):
         
         # Create evaluation dataframe for this checkpoint
         eval_df = create_eval_dataframe()
+        
+        # Add probability columns to the dataframe
+        eval_df['avg_prob_1'] = np.nan
+        eval_df['avg_prob_2'] = np.nan
+        eval_df['prob_diff'] = np.nan
         
         # Evaluate on test samples (limit to a smaller number for faster evaluation)
         num_test_samples = min(10_000, len(test_dataset))
@@ -88,6 +95,19 @@ def main(cfg):
             
             # Get generated text
             generated_text = output.outputs[0].text
+            logprobs = output.outputs[0].logprobs
+            
+            n = 0
+            avg_prob_1 = 0.0
+            avg_prob_2 = 0.0
+
+            for prob_step in logprobs:
+                avg_prob_1 += math.exp(list(prob_step.values())[0].logprob)
+                avg_prob_2 += math.exp(list(prob_step.values())[1].logprob)
+                n += 1
+            
+            avg_prob_1 = avg_prob_1 / n
+            avg_prob_2 = avg_prob_2 / n
             
             # Extract predicted answer (everything after the question)
             predicted_text = generated_text
@@ -104,13 +124,20 @@ def main(cfg):
                 evaluation = evaluate_A(graph, predicted_text, 
                                        BoS_tokens=True, BoT_tokens=True, 
                                        aha_token=True, wait_token=True)
-                
+            
                 # Add evaluation results to dataframe
                 evaluation.add_row_df(eval_df)
+                
+                # Add probability metrics to the last row
+                row_index = eval_df.index.max()
+                eval_df.loc[row_index, 'avg_prob_1'] = avg_prob_1
+                eval_df.loc[row_index, 'avg_prob_2'] = avg_prob_2
+                eval_df.loc[row_index, 'prob_diff'] = avg_prob_1 - avg_prob_2
             except Exception as e:
                 print(f"Error evaluating sample {i}: {e}")
                 # Add a row with NaN values if evaluation fails
-                eval_df.loc[eval_df.index.max() + 1 if not eval_df.empty else 0] = [np.nan] * len(eval_df.columns)
+                row_index = eval_df.index.max() + 1 if not eval_df.empty else 0
+                eval_df.loc[row_index] = [np.nan] * len(eval_df.columns)
         
         # Compute average metrics for this checkpoint
         avg_metrics = {

@@ -4,9 +4,9 @@ defaults:
 - training: default
 - _self_
 
-working_dir: /scratch/Alberghi/ # ${hydra:runtime.cwd}
-results_dir: ${working_dir}/results_final_final_final
-experiment_name: "p5_2"
+working_dir: /data/dynamic_programming # ${hydra:runtime.cwd}
+results_dir: ${working_dir}/results
+experiment_name: "p5_cot_1"
 
 hydra:
   job:

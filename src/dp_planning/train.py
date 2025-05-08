@@ -132,13 +132,13 @@ def main(cfg):
         num_train_epochs=cfg.training.num_epochs,
         per_device_train_batch_size=cfg.training.tokens_per_step // average_tokens_per_sample,
         per_device_eval_batch_size=cfg.training.tokens_per_step // average_tokens_per_sample,
-        eval_strategy="steps",
-        save_strategy="steps",
+        eval_strategy="epoch",
+        save_strategy="epoch",
         # Save every 10% of total steps
-        save_steps=int(cfg.training.num_epochs * len(tokenized_datasets["train"]) / 
-                      (cfg.training.tokens_per_step // average_tokens_per_sample) / 40),
-        eval_steps=int(cfg.training.num_epochs * len(tokenized_datasets["train"]) / 
-                      (cfg.training.tokens_per_step // average_tokens_per_sample) / 40),
+        # save_steps=int(cfg.training.num_epochs * len(tokenized_datasets["train"]) / 
+        #               (cfg.training.tokens_per_step // average_tokens_per_sample) / 40),
+        # eval_steps=int(cfg.training.num_epochs * len(tokenized_datasets["train"]) / 
+        #               (cfg.training.tokens_per_step // average_tokens_per_sample) / 40),
         logging_dir=os.path.join(cfg.results_dir, cfg.experiment_name, "logs"),
         logging_steps=cfg.training.logging_steps,
         lr_scheduler_type="constant" if cfg.training.constant_lr else "linear",
