@@ -616,11 +616,17 @@ def check_nodes_and_correct_layer_order(path, inv_node_labels):
     return (ok_nodes and ok_path)
 
 def evaluate_A(graph, A, 
-               BoS_tokens=True, BoT_tokens=True, aha_token=True, wait_token=True):
+               BoS_tokens=True, BoT_tokens=True, aha_token=True, wait_token=True,
+               correct_costs=None, sum_table=None, correct_sum_table=None):
     
     ls, ks, As = graph.ls, graph.ks, graph.As
     best_c, best_path = graph.best_c, graph.best_path
     node_labels, inv_node_labels = graph.node_labels, graph.inv_node_labels
+
+    if correct_costs is not None:
+        correct_costs_list = [eval(c) for c in correct_costs]
+        assert sum_table is not None
+        assert correct_sum_table is not None
 
     # Handle empty input
     if not A or not A.strip():
@@ -733,6 +739,10 @@ def evaluate_A(graph, A,
                 sub_path, sub_c, errs, is_aha, waits = parse_sub_string(a_sub, aha_token=aha_token, wait_token=wait_token)
                 tot_aha += is_aha; tot_wait += (waits > 0); 
                 syntax_errors += errs
+
+                if correct_costs is not None:
+                    correct_sum_table[best_cs[sub_path[-2]], sub_c-best_cs[sub_path[-2]]-1] += correct_costs_list[n_CoT_steps-1]
+                    sum_table[best_cs[sub_path[-2]], sub_c-best_cs[sub_path[-2]]-1] += 1
                 
                 # Check if we have a valid path
                 if not sub_path:

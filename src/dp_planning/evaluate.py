@@ -46,7 +46,7 @@ def main(cfg):
     # Initialize sampling parameters for vLLM
     sampling_params = SamplingParams(
         temperature=cfg.training.temperature,  # Deterministic sampling (equivalent to do_sample=False)
-        max_tokens=8192,
+        max_tokens=4096,
         stop_token_ids=[tokenizer.encode("EoS")[0]],
         logprobs=2,
     )
@@ -63,7 +63,7 @@ def main(cfg):
             model=checkpoint_path,
             dtype="float16" if torch.cuda.is_available() else "float32",
             trust_remote_code=True,
-            gpu_memory_utilization=0.85  # Increase memory utilization
+            gpu_memory_utilization=0.95  # Increase memory utilization
         )
         
         # Create evaluation dataframe for this checkpoint
@@ -73,6 +73,12 @@ def main(cfg):
         eval_df['avg_prob_1'] = np.nan
         eval_df['avg_prob_2'] = np.nan
         eval_df['prob_diff'] = np.nan
+
+        # Add answer colums to the dataframe
+        # eval_df['question'] = ""
+        # eval_df['ground_truth_cot'] = ""
+        # eval_df['ground_truth_answer'] = ""
+        # eval_df['predicted_text'] = ""
         
         # Evaluate on test samples (limit to a smaller number for faster evaluation)
         num_test_samples = min(10_000, len(test_dataset))
@@ -122,7 +128,7 @@ def main(cfg):
                 
                 # Evaluate the predicted answer
                 evaluation = evaluate_A(graph, predicted_text, 
-                                       BoS_tokens=True, BoT_tokens=True, 
+                                       BoS_tokens=True, BoT_tokens=True,
                                        aha_token=True, wait_token=True)
             
                 # Add evaluation results to dataframe
@@ -133,6 +139,11 @@ def main(cfg):
                 eval_df.loc[row_index, 'avg_prob_1'] = avg_prob_1
                 eval_df.loc[row_index, 'avg_prob_2'] = avg_prob_2
                 eval_df.loc[row_index, 'prob_diff'] = avg_prob_1 - avg_prob_2
+
+                # eval_df.loc[row_index, 'question'] = question
+                # eval_df.loc[row_index, 'ground_truth_cot'] = ground_truth_cot
+                # eval_df.loc[row_index, 'ground_truth_answer'] = ground_truth_answer
+                # eval_df.loc[row_index, 'predicted_text'] = predicted_text
             except Exception as e:
                 print(f"Error evaluating sample {i}: {e}")
                 # Add a row with NaN values if evaluation fails
@@ -143,6 +154,8 @@ def main(cfg):
         avg_metrics = {
             'checkpoint': step
         }
+
+        # eval_df.to_csv(os.path.join(checkpoint_path, "evaluation_results.csv"))
         
         # Calculate overall metrics for all columns except num_layers
         for col in eval_df.columns:
@@ -170,9 +183,6 @@ def main(cfg):
         # Add results to the main dataframe
         results_df = pd.concat([results_df, pd.DataFrame([avg_metrics])], ignore_index=True)
         
-        # Save checkpoint-specific results
-        eval_df.to_csv(os.path.join(checkpoint_path, "evaluation_results.csv"))
-        
         # Print summary of results for this checkpoint
         print(f"Checkpoint {step} evaluation results:")
         for metric, value in avg_metrics.items():
@@ -199,7 +209,10 @@ def main(cfg):
         print("Cleared model from GPU memory")
     
     # Save overall results
-    results_path = os.path.join(cfg.results_dir, cfg.experiment_name, "all_checkpoint_evaluations.csv")
+    if cfg.training.temperature == 0.0:
+        results_path = os.path.join(cfg.results_dir, cfg.experiment_name, "all_checkpoint_evaluations.csv")
+    else:
+        results_path = os.path.join(cfg.results_dir, cfg.experiment_name, f"all_checkpoint_evaluations_temp_{str(cfg.training.temperature).replace('.', '_')}.csv")
     results_df.to_csv(results_path)
     print(f"\nSaved overall evaluation results to {results_path}")
     

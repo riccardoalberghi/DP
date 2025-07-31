@@ -1,13 +1,13 @@
 # Training parameters
-num_epochs: 20
+num_epochs: 30
 tokens_per_epoch: 134217728 # 1024*1024*16 # 201326592 # 1024*1024*192
 tokens_per_step: 16384 # 1024 * 16
 # mini_batch_size: 2
-max_length: 2048
+max_length: 4096
 
 limit_num_of_samples: null # 200000
 
-learning_rate: 2e-5 # 5e-4 # 3e-5 # 
+learning_rate: 2e-5 # 5e-4 # 2e-5 # 
 constant_lr: True
 weight_decay: 0.1
 logging_steps: 1
@@ -21,3 +21,6 @@ p_redundancy: 0.0
 percentage_misplaced_keywords: 0.0
 
 temperature: 0.0
+
+# Path to checkpoint directory to resume training from, null means start from scratch
+resume_from_checkpoint: null

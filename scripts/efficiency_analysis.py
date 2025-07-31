@@ -25,7 +25,7 @@ def analyze_efficiency_impact(cfg, efficiency_values=None, n_graphs=10000):
         Dictionary mapping efficiency values to average CoT steps and wait tokens
     """
     if efficiency_values is None:
-        efficiency_values = [-5, -1, 0, 0.5, 1, 5]
+        efficiency_values = [-5, -10, -20] # [-5, 0, 5]
     
     # Extract graph generation parameters from config
     L = cfg.dataset.graph_generation.max_graph_depth
@@ -58,7 +58,7 @@ def analyze_efficiency_impact(cfg, efficiency_values=None, n_graphs=10000):
             
             # Generate CoT with the current efficiency
             q = graph.Q_string()
-            cot, a = generate_CoT_A(graph, efficiency=eff)
+            cot, a = generate_CoT_A(graph, efficiency=eff, redundancy=2)
             
             # Check if the tokenized sequence would exceed max_length
             combined_text = q + " " + cot + " " + a
@@ -166,7 +166,7 @@ def main(cfg: DictConfig):
     
     # Default parameters
     efficiency_values = None
-    n_graphs = 1000
+    n_graphs = 100_000
     
     # Run the analysis
     results = analyze_efficiency_impact(

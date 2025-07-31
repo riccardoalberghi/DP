@@ -63,6 +63,17 @@ def load_experiment_data(results_path: str, experiment: str) -> Dict[str, pd.Dat
     
     return data_dict
 
+def extract_temperature_info(filename: str) -> str:
+    """Extract temperature information from a filename."""
+    temp_info = ""
+    if "temp_" in filename:
+        # Extract temperature value from name like "all_checkpoint_evaluations_temp_0_5"
+        temp_parts = filename.split("temp_")
+        if len(temp_parts) > 1:
+            temp_value = temp_parts[1].replace("_", ".")
+            temp_info = f" (temp={temp_value})"
+    return temp_info
+
 def group_similar_experiments(experiments: List[str], use_confidence_intervals: bool) -> Dict[str, List[str]]:
     """Group similar experiments for confidence interval calculation.
     
@@ -101,63 +112,80 @@ def plot_all_metrics(results_path: str, experiments: List[str], metrics: List[st
         # If we have multiple experiments in a group and using confidence intervals
         if len(group_exps) > 1 and use_confidence_intervals:
             for metric in metrics:
-                # Collect data from all experiments in the group
-                all_dfs = []
+                # Collect all data files from experiments in this group, grouped by temperature
+                temp_grouped_data = {}  # temperature -> list of dataframes
+                
                 for exp in group_exps:
                     exp_data = load_experiment_data(results_path, exp)
+                    
+                    # Group the data by temperature
                     for data_name, df in exp_data.items():
                         if metric in df.columns:
+                            # Extract temperature info
+                            temp_info = extract_temperature_info(data_name)
+                            
                             # Keep only necessary columns
                             x_col = "checkpoint" if "checkpoint" in df.columns else df.index.name or "index"
                             if x_col == "index":
                                 df = df.reset_index()
                             selected_cols = [x_col, metric]
-                            all_dfs.append(df[selected_cols])
+                            
+                            # Add to temperature group
+                            if temp_info not in temp_grouped_data:
+                                temp_grouped_data[temp_info] = []
+                            
+                            temp_grouped_data[temp_info].append(df[selected_cols])
                 
-                if all_dfs:
-                    # Ensure all dataframes have the same number of rows
-                    if all(len(df) == len(all_dfs[0]) for df in all_dfs):
-                        # Stack the metric values from each experiment
-                        stacked_values = np.stack([df[metric].values for df in all_dfs])
-                        
-                        # Calculate mean and std
-                        mean_values = np.mean(stacked_values, axis=0)
-                        std_values = np.std(stacked_values, axis=0)
-                        
-                        # Get x data from first dataframe
-                        x_col = "checkpoint" if "checkpoint" in all_dfs[0].columns else "index"
-                        x_data = all_dfs[0][x_col].values
-                        
-                        # Normalize x-axis if sync_axis is enabled
-                        if sync_axis and len(x_data) > 1:
-                            x_data_normalized = x_data / x_data.max()
-                            plt.plot(x_data_normalized, mean_values, marker='o', label=f"{group_name}/{metric}")
-                            plt.fill_between(
-                                x_data_normalized, 
-                                mean_values - std_values,
-                                mean_values + std_values,
-                                alpha=0.3
-                            )
+                # Process each temperature group separately
+                for temp_info, all_dfs in temp_grouped_data.items():
+                    if all_dfs:
+                        # Ensure all dataframes have the same number of rows
+                        if all(len(df) == len(all_dfs[0]) for df in all_dfs):
+                            # Stack the metric values from each experiment
+                            stacked_values = np.stack([df[metric].values for df in all_dfs])
+                            
+                            # Calculate mean and std
+                            mean_values = np.mean(stacked_values, axis=0)
+                            std_values = np.std(stacked_values, axis=0)
+                            
+                            # Get x data from first dataframe
+                            x_col = "checkpoint" if "checkpoint" in all_dfs[0].columns else "index"
+                            x_data = all_dfs[0][x_col].values
+                            
+                            # Normalize x-axis if sync_axis is enabled
+                            if sync_axis and len(x_data) > 1:
+                                x_data_normalized = x_data / x_data.max()
+                                plt.plot(x_data_normalized, mean_values, marker='o', label=f"{group_name}/{metric}{temp_info}")
+                                plt.fill_between(
+                                    x_data_normalized, 
+                                    mean_values - std_values,
+                                    mean_values + std_values,
+                                    alpha=0.3
+                                )
+                            else:
+                                plt.plot(x_data, mean_values, marker='o', label=f"{group_name}/{metric}{temp_info}")
+                                plt.fill_between(
+                                    x_data, 
+                                    mean_values - std_values,
+                                    mean_values + std_values,
+                                    alpha=0.3
+                                )
                         else:
-                            plt.plot(x_data, mean_values, marker='o', label=f"{group_name}/{metric}")
-                            plt.fill_between(
-                                x_data, 
-                                mean_values - std_values,
-                                mean_values + std_values,
-                                alpha=0.3
-                            )
-                    else:
-                        print(f"Warning: Skipping confidence intervals for {group_name}/{metric} as not all experiments have the same number of rows")
+                            print(f"Warning: Skipping confidence intervals for {group_name}/{metric}{temp_info} as not all experiments have the same number of rows")
         else:
             # Handle single experiments or when not using confidence intervals
             for exp in group_exps:
                 exp_data = load_experiment_data(results_path, exp)
                 
+                # Group data by temperature
                 for data_name, df in exp_data.items():
                     for metric in metrics:
                         if metric in df.columns:
-                            # Generate a unique label that includes experiment name and metric name
-                            label = f"{exp}/{metric}"
+                            # Extract temperature information
+                            temp_info = extract_temperature_info(data_name)
+                            
+                            # Generate a unique label that includes experiment name, metric name, and temperature if available
+                            label = f"{exp}/{metric}{temp_info}"
                             
                             # Use checkpoint column if available, otherwise use the index
                             x_data = df["checkpoint"] if "checkpoint" in df.columns else df.index
@@ -218,7 +246,8 @@ def main():
         inquirer.Checkbox('selected_experiments',
                          message="Select experiments to compare",
                          choices=experiments,
-                         default=experiments),
+                         # default=experiments
+                         ),
     ]
     
     answers = inquirer.prompt(questions, theme=GreenPassion())

@@ -159,7 +159,15 @@ def main(cfg):
     
     # Train model
     print("Starting training...")
-    trainer.train()
+    if cfg.training.resume_from_checkpoint is not None:
+        resume_path = cfg.training.resume_from_checkpoint
+        # Check if it's a relative path
+        if not os.path.isabs(resume_path):
+            resume_path = to_absolute_path(resume_path)
+        print(f"Resuming training from checkpoint: {resume_path}")
+        trainer.train(resume_from_checkpoint=resume_path)
+    else:
+        trainer.train()
     
     # Save model
     print(f"Saving model to {os.path.join(cfg.results_dir, cfg.experiment_name, 'final_model')}")

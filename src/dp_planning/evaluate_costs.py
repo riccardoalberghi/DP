@@ -18,7 +18,7 @@ from utils import evaluate_A, from_Q_to_graph, create_eval_dataframe
 def main(cfg):
     # Find all checkpoint directories
     print(os.path.join(cfg.results_dir, cfg.experiment_name))
-    checkpoint_paths = glob.glob(os.path.join(cfg.results_dir, cfg.experiment_name, "checkpoint-*"))
+    checkpoint_paths = [os.path.join(cfg.results_dir, cfg.experiment_name, "checkpoint-7898")]# glob.glob(os.path.join(cfg.results_dir, cfg.experiment_name, "checkpoint-15796*"))
     
     # Create a dictionary mapping checkpoint steps to paths
     checkpoints = {int(os.path.basename(path).split("checkpoint-")[1]): path for path in checkpoint_paths}
@@ -92,6 +92,10 @@ def main(cfg):
         print(f"Running batch inference on ground truth CoTs...")
         # Generate with all ground truths as input to get logprobs (batch operation)
         gt_outputs = model.generate(all_ground_truth, sampling_params)
+
+        # Initialize tables of size (L-1)*(C-1)+1, C-1
+        sum_table = np.zeros(shape=[(cfg.dataset.graph_generation.max_graph_depth-1)*(cfg.dataset.graph_generation.max_edge_cost-1)+1, cfg.dataset.graph_generation.max_edge_cost-1])
+        correct_sum_table = np.zeros(shape=[(cfg.dataset.graph_generation.max_graph_depth-1)*(cfg.dataset.graph_generation.max_edge_cost-1)+1, cfg.dataset.graph_generation.max_edge_cost-1])
         
         # Process results
         for i, (output, gt_output) in tqdm(enumerate(zip(outputs, gt_outputs)), 
@@ -101,6 +105,7 @@ def main(cfg):
             sample = test_dataset[i]
             question = sample['question']
             ground_truth_cot = sample['cot']
+            answer = sample['answer']
             
             # Get generated text
             predicted_cot = output.outputs[0].text
@@ -114,7 +119,7 @@ def main(cfg):
             
             # We need to find where the CoT starts in the combined sequence
             # The offset is the number of tokens in the question plus 1 for the space
-            offset = len(question_tokens) + 1
+            offset = len(question_tokens) #  + 1 check
             
             # Initialize a binary string to track cost prediction correctness
             cost_correctness = ""
@@ -130,7 +135,7 @@ def main(cfg):
                 # If the next token is '|', then the current token is a cost
                 if next_token == '|':
                     # Get the probability distribution for this position
-                    if pos_in_sequence < len(gt_logprobs):
+                    if pos_in_sequence < len(gt_logprobs): # not necessary
                         logprob_dict = gt_logprobs[pos_in_sequence]
                         
                         # Convert logprobs to probs and find argmax
@@ -138,12 +143,12 @@ def main(cfg):
                         predicted_token = max(probs.items(), key=lambda x: x[1])[0]
                         
                         # Check if prediction matches the ground truth
-                        is_correct = str(predicted_token) == current_token
-
-                        breakpoint()
+                        is_correct = tokenizer.decode([predicted_token]) == current_token
                         
                         # Update binary string: 1 for correct, 0 for incorrect
                         cost_correctness += "1" if is_correct else "0"
+            
+            _ = evaluate_A(from_Q_to_graph(question), ground_truth_cot + " " + answer, correct_costs=cost_correctness, sum_table=sum_table, correct_sum_table=correct_sum_table)
             
             # Store sample data
             sample_data = {
@@ -173,6 +178,69 @@ def main(cfg):
         sample_csv_path = os.path.join(cfg.results_dir, cfg.experiment_name, f"checkpoint_{step}_samples.csv")
         sample_df.to_csv(sample_csv_path, index=False)
 
+        # Calculate elementwise division of correct_sum_table by sum_table
+        import matplotlib.pyplot as plt
+        
+        # Avoid division by zero by adding a small epsilon where sum_table is 0
+        epsilon = 1e-10
+        sum_table_safe = np.copy(sum_table)
+        sum_table_safe[sum_table_safe == 0] = epsilon
+        
+        # Calculate accuracy table (elementwise division)
+        accuracy_table = correct_sum_table / sum_table_safe
+
+        # ------------------------------------------------------------------
+        # Save accuracy table to CSV with descriptive row and column labels
+        # ------------------------------------------------------------------
+        accuracy_df = pd.DataFrame(
+            accuracy_table,
+            index=[str(i) for i in range(accuracy_table.shape[0])],       # Row labels: 0, 1, 2, ...
+            columns=[f"+{i+1}" for i in range(accuracy_table.shape[1])]    # Column labels: +1, +2, ...
+        )
+        accuracy_csv_path = os.path.join(
+            cfg.results_dir,
+            cfg.experiment_name,
+            f"checkpoint_{step}_accuracy_table.csv"
+        )
+        accuracy_df.to_csv(accuracy_csv_path, index=True)
+        print(f"Saved accuracy table to {accuracy_csv_path}")
+        
+        # Create a figure and axis for the plot
+        fig, ax = plt.subplots(figsize=(10, 8))
+        
+        # Create the heatmap
+        im = ax.imshow(accuracy_table, cmap='viridis', interpolation='nearest', vmin=0, vmax=1)
+        
+        # Add a colorbar
+        cbar = ax.figure.colorbar(im, ax=ax)
+        cbar.ax.set_ylabel('Accuracy', rotation=-90, va="bottom")
+        
+        # Set labels for x and y axes
+        ax.set_xticks(np.arange(accuracy_table.shape[1]))
+        ax.set_yticks(np.arange(accuracy_table.shape[0]))
+        
+        # Label with +1, +2, +3, ... for columns
+        ax.set_xticklabels([f"+{i+1}" for i in range(accuracy_table.shape[1])])
+        
+        # Label with 0, 1, 2, 3, ... for rows
+        ax.set_yticklabels([str(i) for i in range(accuracy_table.shape[0])])
+        
+        # Add grid lines for better readability
+        ax.set_xticks(np.arange(accuracy_table.shape[1]+1)-.5, minor=True)
+        ax.set_yticks(np.arange(accuracy_table.shape[0]+1)-.5, minor=True)
+        ax.grid(which="minor", color="w", linestyle='-', linewidth=2)
+        
+        # Add title and axis labels
+        plt.title(f'Cost Prediction Accuracy - Checkpoint {step}')
+        plt.xlabel('Addend')
+        plt.ylabel('Answer Value')
+        
+        # Save the plot
+        plot_path = os.path.join(cfg.results_dir, cfg.experiment_name, f"checkpoint_{step}_cost_accuracy.png")
+        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Saved cost accuracy plot to {plot_path}")
+        
         # Clean up resources
         from vllm.distributed.parallel_state import destroy_model_parallel, destroy_distributed_environment
         import ray

@@ -1,4 +1,4 @@
-data_dir: ${working_dir}/.eff_p5_cot_1
+data_dir: ${working_dir}/.eff_n5_tokens_ibac
 
 graph_generation:
   max_graph_depth: 7
@@ -7,4 +7,4 @@ graph_generation:
   connectivity_probability: 0.6
 
 cot_generation:
-  efficiency: 5
+  efficiency: -5
