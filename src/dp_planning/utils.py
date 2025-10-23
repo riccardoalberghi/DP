@@ -13,14 +13,14 @@ def graph_generator(L=6, K=6, C=3, p=0.6):
     As = [np.zeros((ks[l], ks[l+1]), dtype=int) for l in range(ls)]
     for l in range(ls):
         for j in range(ks[l]):
-            As[l][j] = np.random.randint(1,C, size=ks[l+1]) * (np.random.rand(ks[l+1]) < (p if l > 0 else 1))
+            As[l][j] = np.random.randint(1,C+1, size=ks[l+1]) * (np.random.rand(ks[l+1]) < (p if l > 0 else 1))
             # rule out dead ends
             if np.sum(As[l][j]) == 0:
-                As[l][j, np.random.randint(ks[l+1])] = np.random.randint(1,C)
+                As[l][j, np.random.randint(ks[l+1])] = np.random.randint(1,C+1)
         # rule out disconnected nodes
         for k in range(ks[l+1]):
             if np.sum(As[l][:,k]) == 0:
-                As[l][np.random.randint(ks[l]),k] = np.random.randint(1,C)
+                As[l][np.random.randint(ks[l]),k] = np.random.randint(1,C+1)
         As[l][As[l] == 0] = inf
     return layered_graph(ls, ks, As)
 
