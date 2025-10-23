@@ -1,4 +1,4 @@
-# Name identifier for the model architecture
+# Name identifier for the model architecture on HuggingFace
 model_name: "phi3"
 
 # Model architecture hyperparameters
@@ -7,5 +7,5 @@ parameters:
   intermediate_size: 3072  # Dimensionality of feedforward network intermediate layer (typically 4x hidden_size)
   num_hidden_layers: 3  # Number of transformer layers in the model
   num_attention_heads: 12  # Number of attention heads in multi-head attention
-  num_key_value_heads: 12  # Number of key-value heads (can differ from query heads in grouped-query attention)
+  num_key_value_heads: 12  # Number of key-value heads
   tie_word_embeddings: False  # Whether to tie input and output embedding weights
