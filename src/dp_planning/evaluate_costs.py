@@ -93,9 +93,9 @@ def main(cfg):
         # Generate with all ground truths as input to get logprobs (batch operation)
         gt_outputs = model.generate(all_ground_truth, sampling_params)
 
-        # Initialize tables of size (L-1)*(C-1)+1, C-1
-        sum_table = np.zeros(shape=[(cfg.dataset.graph_generation.max_graph_depth-1)*(cfg.dataset.graph_generation.max_edge_cost-1)+1, cfg.dataset.graph_generation.max_edge_cost-1])
-        correct_sum_table = np.zeros(shape=[(cfg.dataset.graph_generation.max_graph_depth-1)*(cfg.dataset.graph_generation.max_edge_cost-1)+1, cfg.dataset.graph_generation.max_edge_cost-1])
+        # Initialize tables of size (L-1)*(C)+1, C
+        sum_table = np.zeros(shape=[(cfg.dataset.graph_generation.max_graph_depth-1)*(cfg.dataset.graph_generation.max_edge_cost)+1, cfg.dataset.graph_generation.max_edge_cost])
+        correct_sum_table = np.zeros(shape=[(cfg.dataset.graph_generation.max_graph_depth-1)*(cfg.dataset.graph_generation.max_edge_cost)+1, cfg.dataset.graph_generation.max_edge_cost])
         
         # Process results
         for i, (output, gt_output) in tqdm(enumerate(zip(outputs, gt_outputs)), 
