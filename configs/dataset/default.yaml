@@ -1,10 +1,13 @@
-data_dir: ${working_dir}/.eff_n5_tokens_ibac
+# Directory where dataset files will be stored
+data_dir: ${working_dir}/.eff_n5_tokens
 
+# Parameters for generating graph structures
 graph_generation:
-  max_graph_depth: 7
-  max_num_nodes_per_layer: 6
-  max_edge_cost: 6
-  connectivity_probability: 0.6
+  max_graph_depth: 7  # Maximum depth (number of layers) in generated graphs
+  max_num_nodes_per_layer: 6  # Maximum number of nodes in each graph layer
+  max_edge_cost: 6  # Maximum cost value for edges between nodes
+  connectivity_probability: 0.6  # Probability of creating edges between nodes
 
+# Parameters for generating chain-of-thought (CoT) reasoning
 cot_generation:
-  efficiency: -5
+  efficiency: -5  # Efficiency parameter for CoT generation, $\eta$ in the paper

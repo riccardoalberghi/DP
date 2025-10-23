@@ -1,15 +1,20 @@
+# Default configuration files to compose this config from
 defaults:
-- dataset: default
-- model: phi3
-- training: default
-- _self_
+- dataset: default  # Dataset configuration to use
+- model: phi3  # Model architecture configuration to use
+- training: default  # Training hyperparameters configuration to use
+- _self_  # This config overrides the defaults
 
-working_dir: /scratch/Alberghi/new_results # ${hydra:runtime.cwd}
+# Root directory for all working files and outputs
+working_dir: ${hydra:runtime.cwd}
+# Directory where experiment results will be saved
 results_dir: ${working_dir}/results
-experiment_name: "n5_tokens_ibac"
+# Name of this experiment (used for logging and directory naming)
+experiment_name: ""
 
+# Hydra configuration for job management and output directories
 hydra:
   job:
-    name: ${experiment_name}
+    name: ${experiment_name}  # Job name for tracking
   run:
-    dir: ${results_dir}/${experiment_name}
+    dir: ${results_dir}/${experiment_name}  # Output directory for this run

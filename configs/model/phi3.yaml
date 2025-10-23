@@ -1,9 +1,11 @@
+# Name identifier for the model architecture
 model_name: "phi3"
 
+# Model architecture hyperparameters
 parameters:
-  hidden_size: 768
-  intermediate_size: 3072
-  num_hidden_layers: 3
-  num_attention_heads: 12
-  num_key_value_heads: 12
-  tie_word_embeddings: False
+  hidden_size: 768  # Dimensionality of hidden states/embeddings
+  intermediate_size: 3072  # Dimensionality of feedforward network intermediate layer (typically 4x hidden_size)
+  num_hidden_layers: 3  # Number of transformer layers in the model
+  num_attention_heads: 12  # Number of attention heads in multi-head attention
+  num_key_value_heads: 12  # Number of key-value heads (can differ from query heads in grouped-query attention)
+  tie_word_embeddings: False  # Whether to tie input and output embedding weights
