@@ -73,12 +73,6 @@ def main(cfg):
         eval_df['avg_prob_1'] = np.nan
         eval_df['avg_prob_2'] = np.nan
         eval_df['prob_diff'] = np.nan
-
-        # Add answer colums to the dataframe
-        # eval_df['question'] = ""
-        # eval_df['ground_truth_cot'] = ""
-        # eval_df['ground_truth_answer'] = ""
-        # eval_df['predicted_text'] = ""
         
         # Evaluate on test samples (limit to a smaller number for faster evaluation)
         num_test_samples = min(10_000, len(test_dataset))
@@ -127,9 +121,7 @@ def main(cfg):
                     predicted_text = "BoS " + predicted_text
                 
                 # Evaluate the predicted answer
-                evaluation = evaluate_A(graph, predicted_text, 
-                                       BoS_tokens=True, BoT_tokens=True,
-                                       aha_token=True, wait_token=True)
+                evaluation = evaluate_A(graph, predicted_text, BoS_tokens=True, BoT_tokens=True)
             
                 # Add evaluation results to dataframe
                 evaluation.add_row_df(eval_df)
@@ -139,11 +131,6 @@ def main(cfg):
                 eval_df.loc[row_index, 'avg_prob_1'] = avg_prob_1
                 eval_df.loc[row_index, 'avg_prob_2'] = avg_prob_2
                 eval_df.loc[row_index, 'prob_diff'] = avg_prob_1 - avg_prob_2
-
-                # eval_df.loc[row_index, 'question'] = question
-                # eval_df.loc[row_index, 'ground_truth_cot'] = ground_truth_cot
-                # eval_df.loc[row_index, 'ground_truth_answer'] = ground_truth_answer
-                # eval_df.loc[row_index, 'predicted_text'] = predicted_text
             except Exception as e:
                 print(f"Error evaluating sample {i}: {e}")
                 # Add a row with NaN values if evaluation fails
@@ -154,8 +141,6 @@ def main(cfg):
         avg_metrics = {
             'checkpoint': step
         }
-
-        # eval_df.to_csv(os.path.join(checkpoint_path, "evaluation_results.csv"))
         
         # Calculate overall metrics for all columns except num_layers
         for col in eval_df.columns:

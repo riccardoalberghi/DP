@@ -4,7 +4,7 @@ import hydra
 from tokenizer import get_tokenizer
 import pandas as pd
 from hydra.utils import to_absolute_path
-from datasets import Dataset, DatasetDict
+from datasets import Dataset
 from utils import generate_CoT_A, graph_generator
 
 
@@ -26,12 +26,9 @@ def generate_samples(cfg):
         
         question = graph.Q_string()
         cot, answer = generate_CoT_A(graph, 
-                                     efficiency=cfg.dataset.cot_generation.efficiency, 
-                                     aha_token=cfg.training.use_aha, 
-                                     wait_token=cfg.training.use_wait,
+                                     efficiency=cfg.dataset.cot_generation.efficiency,
                                      redundancy=cfg.training.redundacy,
                                      p_redundancy=cfg.training.p_redundancy,
-                                     p_misplaced_keywords=cfg.training.percentage_misplaced_keywords,
                                      )
         
         # Set CoT to empty string if train_on_cots is False

@@ -2,22 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-
-####### TODO : refactor code, add __eq__ to graph class
-
-
-
-### EXTERNAL PARAMETERS ###
-
-# L = 6 # maximum graph depth
-# K = 6 # maximum number of nodes per intermediate layer
-# C = 3 # maximum cost per edge
-# p = 0.6 # connectivity btw nodes in successive layers
-
 shift = 0.01 # for plotting purposes
 inf = 100000 # must be larger than largest possible cumulative cost (C * K)
-
-
 
 ### GRAPH GENERATION ###
 
@@ -256,49 +242,39 @@ def check_done_layers(branches, inv_node_labels, ls):
     done_layers[min(end_l_list):] = False
     return done_layers
 
-def generate_CoT_A(graph, efficiency=10., 
-                 BoT_tokens=True, BoS_tokens=True, aha_token=True, wait_token=True,
-                 p_misplaced_keywords=0., redundancy=0, p_redundancy=0.0):
-    # The idea of this function is to construct CoTs with some control over the 
-    # efficiency of the exploration process. What allows this controdl is that, 
-    # at each step, we have a list of current open branches, i.e. paths that we 
-    # could consider next. 
-    # - Every time we reach a new node (expanding our search frontier) we may 
-    # open some new branches in our list.
-    # - Every time we do the computation for a given branch, we remove it from 
-    # our queue.
-    # - Importantly, we do not choose which branch to explore with uniform 
-    # probability, but we reweight the sampling process with a negative 
-    # exponential depending on the layer at which the branch is found, and a 
-    # coefficient 'efficiency' that determines how determined we are to explore
-    # in the correct layer-wise order (most efficient!).
-    # - Every time we close all the last open branch connected to one node, we
-    # consider this node to be 'solved'. Once all the nodes are solved, we are 
-    # done!
-    # - The 'aha' token may be produced when we find a better path to reach a 
-    # node that we previously reached in a sub-optimal way.
-    # - The 'wait' token may be produced when may be produced when a better 
-    # path to reach a given node is found, and this forces us to reconsider the 
-    # paths to reach a node that we previously deemed solved.
-    # - Both aha and wait tokens may be misplaced with probability p_misplaced_keywords
-    # - With redundancy parameter, each branch will be deterministically explored
-    #   the specified number of times (e.g., redundancy=2 means try each path twice)
-    # NOTE THAT:
-    # - We assume to always use current best sub-paths for estimating the new 
-    # cumulative costs
-    # - We never stop the exploration process early, e.g. in situations where 
-    # we explore the optimal path early (there would be no way to know)
-    
+def generate_CoT_A(graph, efficiency=10., BoT_tokens=True, BoS_tokens=True, redundancy=0, p_redundancy=0.0):
+    """
+    The idea of this function is to construct CoTs with some control over the 
+    efficiency of the exploration process. What allows this controdl is that, 
+    at each step, we have a list of current open branches, i.e. paths that we 
+    could consider next. 
+    - Every time we reach a new node (expanding our search frontier) we may 
+    open some new branches in our list.
+    - Every time we do the computation for a given branch, we remove it from 
+    our queue.
+    - Importantly, we do not choose which branch to explore with uniform 
+    probability, but we reweight the sampling process with a negative 
+    exponential depending on the layer at which the branch is found, and a 
+    coefficient 'efficiency' that determines how determined we are to explore
+    in the correct layer-wise order (most efficient!).
+    - Every time we close all the last open branch connected to one node, we
+    consider this node to be 'solved'. Once all the nodes are solved, we are 
+    done!
+    - With redundancy parameter, each branch will be deterministically explored
+      the specified number of times (e.g., redundancy=2 means try each path twice)
+    NOTE THAT:
+    - We assume to always use current best sub-paths for estimating the new 
+    cumulative costs
+    - We never stop the exploration process early, e.g. in situations where 
+    we explore the optimal path early (there would be no way to know)
+    """
     ls, ks, As, node_labels, inv_node_labels = graph.ls, graph.ks, graph.As, graph.node_labels, graph.inv_node_labels
     N = np.sum(ks)
     
     # here we use the node labels as identifiers
-    best_cs = inf * np.ones(N, dtype=int); best_cs[0] = 0; 
-    best_choice = np.zeros(N, dtype=int)    
-    # for the wait moments, we consider cases in which we have found a better way
-    # to reach an intermediate node, forcing us to review a path passign trhough
-    # this node that we have previously computed (that computation was useless!)
-    # thus we store from which directions we already reached each node:
+    best_cs = inf * np.ones(N, dtype=int); best_cs[0] = 0;
+    best_choice = np.zeros(N, dtype=int)
+    # we store from which directions we already reached each node:
     tried_routes_to_node = [[] for i in range(N)] 
     s = "BoT " if BoT_tokens else ""
     
@@ -341,17 +317,8 @@ def generate_CoT_A(graph, efficiency=10.,
         
         if path[-2] not in tried_routes_to_node[end]:
             tried_routes_to_node[end].append(path[-2])
-         
-        misplace_aha = np.random.rand() < p_misplaced_keywords
-        if misplace_aha and new_c >= old_c:
-            if aha_token:
-                # the cost is not better than the previously found one, 
-                # but we misplace the keyword, we say aha!
-                s += "aha "
+        
         if new_c < old_c:
-            if aha_token and not misplace_aha:
-                # the cost is better than the previously found one, we say aha!
-                s += "aha "
             # update best_cs for the end node
             best_cs[end] = new_c
             best_choice[end] = start 
@@ -366,18 +333,6 @@ def generate_CoT_A(graph, efficiency=10.,
                         # check that this there is an edge with finite cost
                         continue
                     branch = (layer+1, end, node_labels[(layer+2, k)])
-                    
-                    misplace_wait = np.random.rand() < p_misplaced_keywords
-                    if end in tried_routes_to_node[branch[2]]: 
-                        # if the new branch was already seen before, but with a 
-                        # sub-optimal partial cost, we should review our 
-                        # computation with the new better partial score
-                        # we can signal this with a "wait!"
-                        if wait_token and not misplace_wait:                        
-                            s += "wait "
-                    elif misplace_wait:
-                        if wait_token:
-                            s += "wait "
                     
                     if branch in branches:
                         # it was already an open branch, but now we have a 
@@ -397,8 +352,7 @@ def generate_CoT_A(graph, efficiency=10.,
         opt_path.append(best_choice[opt_path[-1]])
     opt_path.reverse()
     
-    # sA = "BoS " if BoS_tokens else ""
-    sA = ""
+    sA = "BoS " if BoS_tokens else ""
     for l in range(len(opt_path)):
         sA += f"n{opt_path[l]} "
     sA += f"{best_cs[-1]} |"
@@ -415,10 +369,10 @@ def generate_CoT_A(graph, efficiency=10.,
 ### PARSING / EVALUATION OF CoT + A ###
 
 def create_eval_dataframe():
-    df = pd.DataFrame(columns=['syntax_errors', 'is_A_path_possible', 'is_A_cost_consistent', 'is_A_cost_optimal', 'is_A_path_length_correct', 
+    df = pd.DataFrame(columns=['syntax_errors', 'is_A_path_possible', 'is_A_cost_consistent', 'is_A_cost_optimal', 'is_A_path_length_correct',
                           'is_A_cost_optimal_and_consistent', 'is_A_path_correct',
                           'n_CoT_steps', 'repeated_CoT_steps', 'CoT_path_possible', 'consistent_CoT_steps', 'sub_prob_optimal_CoT_steps', 'CoT_steps_skipped_sub_prob',
-                          'frac_correct_aha', 'missed_aha', 'frac_correct_wait', 'missed_wait', 'num_layers'])
+                          'num_layers'])
     return df
 
 class Evaluation_state():
@@ -426,23 +380,18 @@ class Evaluation_state():
         self.syntax_errors, self.is_A_path_possible, self.is_A_cost_consistent, self.is_A_cost_optimal, self.is_A_path_length_correct = evals[0], evals[1], evals[2], evals[3], evals[4]
         self.is_A_cost_optimal_and_consistent = self.is_A_cost_optimal and self.is_A_cost_consistent
         self.n_CoT_steps, self.repeated_CoT_steps, self.CoT_path_possible, self.consistent_CoT_steps, self.sub_prob_optimal_CoT_steps, self.CoT_steps_skipped_sub_prob = evals[5], evals[6], evals[7], evals[8], evals[9], evals[10]
-        self.frac_correct_aha, self.missed_aha, self.frac_correct_wait, self.missed_wait = evals[11], evals[12], evals[13], evals[14]
-        self.num_layers = evals[15]
-        self.is_A_path_correct = evals[16] if len(evals) > 16 else (self.is_A_cost_optimal and self.is_A_cost_consistent and self.is_A_path_length_correct)
-    def __repr__(self, aha_token=True, wait_token=True):
-        s = f"Overall the response contains {self.syntax_errors} syntax errors." 
+        self.num_layers = evals[11]
+        self.is_A_path_correct = evals[12] if len(evals) > 12 else (self.is_A_cost_optimal and self.is_A_cost_consistent and self.is_A_path_length_correct)
+    def __repr__(self):
+        s = f"Overall the response contains {self.syntax_errors} syntax errors."
         s += f"\nA:\n allowed path: {self.is_A_path_possible} \n consistency: {self.is_A_cost_consistent} \n cost optimality: {self.is_A_cost_optimal} \n correct path length: {self.is_A_path_length_correct} \n cost optimal and consistent: {self.is_A_cost_optimal_and_consistent} \n path correct: {self.is_A_path_correct}"
         s += f"\nCoT:\n n steps={self.n_CoT_steps}, \n repeated steps={self.repeated_CoT_steps} \n allowed paths={self.CoT_path_possible} \n consistent steps={self.consistent_CoT_steps} \n steps involving optimal partial paths={self.sub_prob_optimal_CoT_steps} \n steps involving unseen partial paths={self.CoT_steps_skipped_sub_prob}"
-        if aha_token:
-            s += f"\n fraction of correct 'aha'={self.frac_correct_aha} \n missed 'aha'={self.missed_aha}"
-        if wait_token:
-            s += f"\n fraction of correct 'wait'={self.frac_correct_wait} \n missed 'wait'={self.missed_wait}"
-        s += f"\n graph layers={self.num_layers}" 
+        s += f"\n graph layers={self.num_layers}"
         return s
     def add_row_df(self, df):
         # adding a row
         ind = 0 if (df.index.max() is np.nan) else df.index.max()+1
-        
+
         # Create a dictionary for all values
         row_data = {
             'syntax_errors': self.syntax_errors,
@@ -458,45 +407,23 @@ class Evaluation_state():
             'consistent_CoT_steps': self.consistent_CoT_steps,
             'sub_prob_optimal_CoT_steps': self.sub_prob_optimal_CoT_steps,
             'CoT_steps_skipped_sub_prob': self.CoT_steps_skipped_sub_prob,
-            'frac_correct_aha': self.frac_correct_aha,
-            'missed_aha': self.missed_aha,
-            'frac_correct_wait': self.frac_correct_wait,
-            'missed_wait': self.missed_wait,
             'num_layers': self.num_layers
         }
-        
+
         # Set values for columns present in the dataframe
         for col in row_data:
             if col in df.columns:
                 df.loc[ind, col] = row_data[col]
 
-def parse_sub_string(a_list, aha_token=False, wait_token=False):
+def parse_sub_string(a_list):
     path = []
     c = -1
     syntax_errors = 0
-    waits = 0
-    
+
     # Handle empty input
     if not a_list:
-        return path, c, syntax_errors, False, waits
-    
-    # Process wait tokens
-    if wait_token:
-        while len(a_list) > 0 and (a_list[-1] == 'wait'):
-            waits += 1
-            a_list = a_list[:-1]
-        a_list, errs = check_remove(a_list, 'wait')
-        syntax_errors += errs
-    
-    # Process aha tokens
-    is_aha = False
-    if aha_token:
-        if len(a_list) > 0 and (a_list[-1] == 'aha'):
-            is_aha = True
-            a_list = a_list[:-1]
-        a_list, errs = check_remove(a_list, 'aha')
-        syntax_errors += errs
-    
+        return path, c, syntax_errors
+
     # Process path and cost
     ind = 0
     while ind < len(a_list):
@@ -504,7 +431,7 @@ def parse_sub_string(a_list, aha_token=False, wait_token=False):
             syntax_errors += 1
             ind += 1
             continue
-            
+
         while ind < len(a_list) and len(a_list[ind]) > 0 and a_list[ind][0] == 'n':
             try:
                 node_id = int(a_list[ind][1:])
@@ -514,17 +441,17 @@ def parse_sub_string(a_list, aha_token=False, wait_token=False):
                 syntax_errors += 1
                 # print(f"Warning: Invalid node format: {a_list[ind]}")
             ind += 1
-            
+
         if ind < len(a_list):
-            try: 
+            try:
                 c = int(a_list[ind])
                 ind += 1
             except ValueError:
                 # print(f"Warning: Invalid cost format: {a_list[ind]}")
                 ind += 1
                 syntax_errors += 1
-                
-    return path, c, syntax_errors, is_aha, waits
+
+    return path, c, syntax_errors
                 
 def check_remove(a_list, token):
     syntax_errors = 0
@@ -615,8 +542,8 @@ def check_nodes_and_correct_layer_order(path, inv_node_labels):
             
     return (ok_nodes and ok_path)
 
-def evaluate_A(graph, A, 
-               BoS_tokens=True, BoT_tokens=True, aha_token=True, wait_token=True,
+def evaluate_A(graph, A,
+               BoS_tokens=True, BoT_tokens=True,
                correct_costs=None, sum_table=None, correct_sum_table=None):
     
     ls, ks, As = graph.ls, graph.ks, graph.As
@@ -631,7 +558,7 @@ def evaluate_A(graph, A,
     # Handle empty input
     if not A or not A.strip():
         # print("Warning: Empty or whitespace-only input")
-        return Evaluation_state([1, False, False, False, False, 0, 0, 0, 0, 0, 0, None, None, None, None])
+        return Evaluation_state([1, False, False, False, False, 0, 0, 0, 0, 0, 0, ls])
 
     a_list = A.split(); cot_list = [];
      
@@ -687,9 +614,9 @@ def evaluate_A(graph, A,
         a_list = a_list[:-1] 
         
     a_list, errs = check_remove(a_list, '|')
-    syntax_errors += errs    
-    
-    A_path, A_c, errs, _, _ = parse_sub_string(a_list, aha_token=False, wait_token=False)
+    syntax_errors += errs
+
+    A_path, A_c, errs = parse_sub_string(a_list)
     syntax_errors += errs
     
     is_A_path_possible = check_nodes_and_correct_layer_order(A_path, inv_node_labels)
@@ -701,10 +628,8 @@ def evaluate_A(graph, A,
     repeated_CoT_steps = 0 if BoT_tokens else None
     CoT_path_possible = 0 if BoT_tokens else None
     consistent_CoT_steps = 0 if BoT_tokens else None
-    sub_prob_optimal_CoT_steps = 0 if BoT_tokens else None 
-    CoT_steps_skipped_sub_prob = 0 if BoT_tokens else None 
-    correct_aha, missed_aha, tot_aha = 0, 0, 0
-    correct_wait, missed_wait, tot_wait = 0, 0, 0
+    sub_prob_optimal_CoT_steps = 0 if BoT_tokens else None
+    CoT_steps_skipped_sub_prob = 0 if BoT_tokens else None
     
     if BoT_tokens and cot_list:
         ### CHECKING CoT (cot_list) ###
@@ -736,8 +661,7 @@ def evaluate_A(graph, A,
                     cot_list = cot_list[ind+1:]
                 
                 # parse and evaluate the identified substring (reasoning step)
-                sub_path, sub_c, errs, is_aha, waits = parse_sub_string(a_sub, aha_token=aha_token, wait_token=wait_token)
-                tot_aha += is_aha; tot_wait += (waits > 0); 
+                sub_path, sub_c, errs = parse_sub_string(a_sub)
                 syntax_errors += errs
 
                 if correct_costs is not None:
@@ -780,31 +704,6 @@ def evaluate_A(graph, A,
                     # update current estimate of best cost to this end node
                     if better_cost:
                         best_cs[end] = sub_c
-                        if wait_token:
-                            try:
-                                l_end, k_end = inv_node_labels[end]
-                                if l_end != ls and l_end < len(As): 
-                                    correct_waits = 0
-                                    for k in range(As[l_end].shape[1]):
-                                        if As[l_end][k_end, k] == inf: 
-                                            continue 
-                                        try:
-                                            dest = node_labels.get((l_end+1, k))
-                                            if dest is not None and end in tried_routes_to_node[dest]:
-                                                correct_waits += 1
-                                        except (KeyError, IndexError) as e:
-                                            # print(f"Warning: Node label lookup error: {e}")
-                                            print("", end="")
-                                    correct_wait += ((waits > 0) & (correct_waits == waits))
-                                    missed_wait += (waits == 0) * correct_waits
-                            except (KeyError, IndexError) as e:
-                                # print(f"Warning: Invalid node index in inv_node_labels: {e}")
-                                print("", end="")
-                            
-                    if aha_token:
-                        # check if aha was correct
-                        correct_aha += (is_aha & better_cost)
-                        missed_aha += (~is_aha & better_cost)
         
                     # check if the cost computation makes sense
                     consistent_CoT_steps += check_path_cost(As, sub_path, sub_c, inv_node_labels)
@@ -844,17 +743,11 @@ def evaluate_A(graph, A,
                 syntax_errors += 1
                 break
     
-    # Calculate metrics only with positive denominators
-    frac_correct_aha = (correct_aha / tot_aha) if (aha_token and (tot_aha > 0)) else None
-    frac_correct_wait = (correct_wait / tot_wait) if (wait_token and (tot_wait > 0)) else None
-    missed_aha = missed_aha if aha_token else None
-    missed_wait = missed_wait if wait_token else None
-    
     # Calculate the new is_A_path_correct metric
     is_A_path_correct = is_A_cost_optimal and is_A_cost_consistent and is_A_path_length_correct
-    
-    ev = Evaluation_state([syntax_errors, is_A_path_possible, is_A_cost_consistent, is_A_cost_optimal, is_A_path_length_correct, 
+
+    ev = Evaluation_state([syntax_errors, is_A_path_possible, is_A_cost_consistent, is_A_cost_optimal, is_A_path_length_correct,
                           n_CoT_steps, repeated_CoT_steps, CoT_path_possible, consistent_CoT_steps, sub_prob_optimal_CoT_steps, CoT_steps_skipped_sub_prob,
-                          frac_correct_aha, missed_aha, frac_correct_wait, missed_wait, ls, is_A_path_correct])
+                          ls, is_A_path_correct])
     
     return ev

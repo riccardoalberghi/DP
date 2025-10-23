@@ -2,7 +2,7 @@
 num_epochs: 30  # Number of training epochs to run
 tokens_per_epoch: 134217728 # Total number of tokens to process per epoch (128M tokens), it is 33554432 for 32M tokens
 tokens_per_step: 16384 # =1024 * 16  # Number of tokens to process in each training step (16K tokens)
-max_length: 4096  # Maximum sequence length for input samples
+max_length: 4096  # Maximum sequence length for input samples (ie context length)
 
 # Limit on number of training samples to use (null = no limit)
 limit_num_of_samples: null
@@ -15,13 +15,10 @@ logging_steps: 1  # Log metrics every N training steps
 
 # Training behavior flags
 train_on_cots: True  # Whether to train on chain-of-thought reasoning data
-use_wait: False  # Whether to use wait tokens during training
-use_aha: False  # Whether to use "aha" tokens during training
 
 # Data augmentation/noise parameters
 redundacy: 0  # Number of deterministic redundancy to add
 p_redundancy: 0.0  # Probability of reinsering the path in the priority queue (ie random redundancy)
-percentage_misplaced_keywords: 0.0  # Percentage of keywords to intentionally misplace
 
 # Sampling temperature
 temperature: 0.0  # Temperature for sampling (0.0 = greedy/deterministic)

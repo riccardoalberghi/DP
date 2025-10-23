@@ -3,7 +3,7 @@ from transformers import PreTrainedTokenizerFast
 
 
 def get_vocab(cfg):
-    vocab = ["BoT", "EoT", "BoS", "EoS", "|", "[", "]", "aha", "wait", "[UNK]", "[PAD]"]
+    vocab = ["BoT", "EoT", "BoS", "EoS", "|", "[", "]", "[UNK]", "[PAD]"]
 
     # Add layers
     vocab.extend([f"l{i}" for i in range(cfg.dataset.graph_generation.max_graph_depth)])
