@@ -592,16 +592,24 @@ def evaluate_A(graph, A,
             
     if BoS_tokens and a_list:
         # check the presence of and remove the BoS_tokens from A
-            
+
+        # First check if BoS is at the beginning (correct position)
+        if not a_list or a_list[0] != 'BoS':
+            syntax_errors += 1
+            # print("Warning: Missing BoS token at beginning")
+        else:
+            a_list = a_list[1:]
+
+        # Now check for any misplaced BoS tokens
         a_list, errs = check_remove(a_list, 'BoS')
-        syntax_errors += errs    
-        
+        syntax_errors += errs
+
         if not a_list or a_list[-1] != 'EoS':
             syntax_errors += 1
             # print("Warning: Missing EoS token at end")
-        else: 
-            a_list = a_list[:-1] 
-            
+        else:
+            a_list = a_list[:-1]
+
         a_list, errs = check_remove(a_list, 'EoS')
         syntax_errors += errs
       

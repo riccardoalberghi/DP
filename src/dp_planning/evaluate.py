@@ -115,13 +115,20 @@ def main(cfg):
             # Parse the graph from the question to use for evaluation
             try:
                 graph = from_Q_to_graph(question)
-                
-                # Add BoS token to the predicted text if it's missing
-                if not predicted_text.startswith("BoS"):
+
+                # Determine if the response includes CoT based on presence of BoT token
+                has_cot = "BoT" in predicted_text
+
+                # Add BoS token if it's missing (but only if there's no CoT, or after EoT)
+                if not has_cot and not predicted_text.startswith("BoS"):
+                    # No CoT in response, add BoS at the beginning
                     predicted_text = "BoS " + predicted_text
-                
+                elif has_cot and "EoT" in predicted_text and "BoS" not in predicted_text:
+                    # Has CoT but missing BoS after EoT, add it
+                    predicted_text = predicted_text.replace("EoT", "EoT BoS", 1)
+
                 # Evaluate the predicted answer
-                evaluation = evaluate_A(graph, predicted_text, BoS_tokens=True, BoT_tokens=True)
+                evaluation = evaluate_A(graph, predicted_text, BoS_tokens=True, BoT_tokens=has_cot)
             
                 # Add evaluation results to dataframe
                 evaluation.add_row_df(eval_df)

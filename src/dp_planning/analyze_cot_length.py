@@ -24,9 +24,10 @@ def main():
             
             # Generate CoT with specified redundancy
             cot, answer = generate_CoT_A(graph, redundancy=redundancy)
-            
+
             # Use evaluate_A to get n_cot_steps
-            evaluation = evaluate_A(graph, cot)
+            # evaluate_A expects the full response (CoT + Answer concatenated)
+            evaluation = evaluate_A(graph, cot + " " + answer)
             cot_lengths.append(evaluation.n_CoT_steps)
         
         # Calculate statistics
