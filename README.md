@@ -22,12 +22,12 @@ The repo uses `Hydra` do manage config files. All of them are contined inside th
 ## Graph Generation & Training
 Once are parameter are set correctly the training can be launched using
 ```
-python src/dp_planning/generate.py
+python src/dp_planning/generate_dataset.py
 python src/dp_planning/train.py
 ```
 The training will be logged in the terminal and on `wandb`. In addition a checkpoint at the end of each epoch will be created.
 
-Using the configs in the manuscript one can expect training to last around 8 hours on a single A100 80GB. Note that VRAM required to train is ~12GB, thus all the tests can be performed on smaller GPUs, like an RTX 4090, without any change in configs and with a very small penalty in speed.
+Using the configs in the manuscript one can expect training to last around 8 hours on a single A100 80GB. Note that VRAM required to train is ~14GB, thus all the tests can be performed on smaller GPUs, like an RTX 4090, without any change in configs and with a very small penalty in speed.
 
 ## Evaluation
 During training only the test cross-entropy will be reported. To have a complete evaluation of our custom metrics launch the evalution script with
