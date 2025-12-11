@@ -352,7 +352,7 @@ def generate_CoT_A(graph, efficiency=10., BoT_tokens=True, BoS_tokens=True, redu
         opt_path.append(best_choice[opt_path[-1]])
     opt_path.reverse()
     
-    sA = "BoS " if BoS_tokens else ""
+    sA = ""
     for l in range(len(opt_path)):
         sA += f"n{opt_path[l]} "
     sA += f"{best_cs[-1]} |"
@@ -593,12 +593,7 @@ def evaluate_A(graph, A,
     if BoS_tokens and a_list:
         # check the presence of and remove the BoS_tokens from A
 
-        # First check if BoS is at the beginning (correct position)
-        if not a_list or a_list[0] != 'BoS':
-            syntax_errors += 1
-            # print("Warning: Missing BoS token at beginning")
-        else:
-            a_list = a_list[1:]
+
 
         # Now check for any misplaced BoS tokens
         a_list, errs = check_remove(a_list, 'BoS')
